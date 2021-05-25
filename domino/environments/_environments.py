@@ -1,11 +1,9 @@
-from dataclasses import dataclass, field
-import os, logging
+import io
+import logging
+import os
 from typing import List
 
 import requests
-from requests.auth import HTTPBasicAuth
-from domino import Domino
-from domino.http_request_manager import _HttpRequestManager
 from domino.bearer_auth import BearerAuth
 from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME
 from domino.helpers import (
@@ -15,8 +13,12 @@ from domino.helpers import (
     get_path_to_domino_token_file,
     is_version_compatible,
 )
+from domino.http_request_manager import _HttpRequestManager
+from requests.auth import HTTPBasicAuth
 
-__version__ == "0.0.1"
+from .utils import parse_revision_tar
+
+__version__ = "0.0.1"
 
 BASE_URL = "https://field.cs.domino.tech"
 BASE_ENDPOINT = f"{BASE_URL}/v4"
@@ -25,10 +27,6 @@ GET_REVISION_URL = BASE_URL + "/environments/revisions/{}"
 
 api_key = ""
 env_id = "60a4227aca6bcb42784aea9f"
-headers = {
-    "Accept": "application/json",
-    "X-Domino-Api-Key": api_key,
-}
 
 res = requests.get(BASE_ENDPOINT + f"/environments/{env_id}", headers=headers)
 print(res)
@@ -72,9 +70,13 @@ class ImageType:
     environment = "Environment"
 
 
-@dataclass
+class ClusterType:
+    spark = "Spark"
+
+
 class _EnvironmentRoutes:
-    host: str
+    def __init__(self, host: str):
+        self.host = host
 
     def deployment_version(self):
         return self.host + "/version"
@@ -82,43 +84,20 @@ class _EnvironmentRoutes:
     def _build_environments_url(self) -> str:
         return self.host + "/v4/environments"
 
+    def environment_default_get(self):
+        return self._build_environments_url() + "/defaultEnvironment"
+
     def environment_get(self, environment_id):
         return self._build_environments_url() + f"/{environment_id}"
 
     def environment_remove(self, environment_id):
         return self._build_environments_url() + f"/{environment_id}/archive"
 
+    def revision_create(self, environment_id):
+        return self.host + f"/environments/{environment_id}/revisions"
 
-@dataclass
-class WorkspaceTool:
-    _id: str
-    name: str
-    title: str
-    icon_url: str
-    start: List[str] = field(default_factory=list)
-    proxy_config: dict = field(default_factory=dict)
-    supported_file_extensions: List[str] = field(default_factory=list)
-
-
-@dataclass
-class Revision:
-    _id: str
-    number: int
-    status: str
-    url: str
-    available_tools: list = field(default_factory=list)
-
-    def __post_init__(self):
-        self.available_tools: List[WorkspaceTool] = [
-            self._parse_tool(tool) for tool in self.available_tools
-        ]
-
-    def _parse_tool(tool: dict) -> WorkspaceTool:
-        tool["_id"] = tool.pop("id")
-        tool["icon_url"] = tool.pop("iconUrl")
-        tool["proxy_config"] = tool.pop("proxyConfig")
-        tool["supported_file_extensions"] = tool.pop("supportedFileExtensions")
-        return WorkspaceTool(**tool)
+    def revision_download(self, environment_id, revision_id):
+        return self.host + f"/v1/environments/{environment_id}/revisions/{revision_id}/dockerImageSourceProjectWeb"
 
 
 class Environment:
@@ -132,7 +111,7 @@ class Environment:
         self.request_manager = self._initialise_request_manager(api_key, domino_token_file)
         self._routes = _EnvironmentRoutes(base_url)
 
-        # Get Domino depoloyment version
+        # Get Domino deployment version
         self._version = self.deployment_version()
         self._logger.info(f"Domino deployment {base_url} is running version {self._version}")
 
@@ -187,17 +166,76 @@ class Environment:
         url = self._routes.environment_remove(self._id)
         return self.request_manager.post(url)
 
-    def get_latest_revision(self) -> Revision:
-        rev = self._data.get("latestRevision")
-        rev["_id"] = rev.pop("id")
-        rev["available_tools"] = rev.pop("availableTools")
-        return Revision(**rev)
+    def get_default_environment(self):
+        url = self._routes.environment_default_get()
+        return self.request_manager.get(url).json()
 
-    def get_active_revision(self) -> Revision:
-        rev = self._data.get("activeRevision")
-        rev["_id"] = rev.pop("id")
-        rev["available_tools"] = rev.pop("availableTools")
-        return Revision(**rev)
+    def get_latest_revision(self) -> dict:
+        return self._data.get("latestRevision")
+
+    def get_active_revision(self) -> dict:
+        return self._data.get("activeRevision")
+
+    def create_revision(
+        self,
+        image_type: str,
+        docker_image: str = "",
+        base_environment_revision_id: str = "",
+        base_default_environment_image: str = "",
+        dockerfile_instructions: str = "",
+        workspace_tools: str = "",
+        pre_run_script: str = "",
+        post_run_script: str = "",
+        pre_setup_script: str = "",
+        post_setup_script: str = "",
+        environment_variables: List[tuple] = None,
+        force_rebuild: bool = False,
+        should_use_vpn: bool = False,
+        cluster_types: str = None,
+        docker_arguments: str = "",
+        summary: str = "",
+    ):
+        form_payload = {
+            "base.imageType": image_type,
+            "base.dockerImage": docker_image,
+            "base.baseEnvironmentRevisionId": base_environment_revision_id,
+            "base.defaultEnvironmentImage": base_default_environment_image,
+            "dockerfileInstructions": dockerfile_instructions,
+            "properties": workspace_tools,
+            "preRunScript": pre_run_script,
+            "postRunScript": post_run_script,
+            "preSetupScript": pre_setup_script,
+            "postSetupScript": post_setup_script,
+            "dockerArguments": docker_arguments,
+            "summary": summary,
+        }
+
+        if environment_variables:
+            for idx, env_var in enumerate(environment_variables):
+                form_payload[f"buildEnvironmentVariables[{idx}].name"] = env_var[0]
+                form_payload[f"buildEnvironmentVariables[{idx}].value"] = env_var[1]
+
+        if force_rebuild:
+            form_payload["noCache"] = True
+
+        if should_use_vpn:
+            form_payload["shouldUseVPN"] = "on"
+
+        if cluster_types:
+            form_payload["clusterTypes[]"] = cluster_types
+
+        url = self._routes.revision_create(self._id)
+        return self.request_manager.post(
+            url=url,
+            data=form_payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+    def _scrape_revision(self, environment_id, revision_id):
+        url = self._routes.revision_download(environment_id, revision_id)
+        res = self.request_manager.get(url)
+        file_io = io.BytesIO(res.content)
+        return parse_revision_tar(file_io)
 
     @property
     def _id(self) -> str:
@@ -212,7 +250,7 @@ class Environment:
         return self._data.get("name")
 
     @property
-    def visibilty(self) -> str:
+    def visibility(self) -> str:
         return self._data.get("visibility")
 
     @property

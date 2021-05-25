@@ -1,0 +1,42 @@
+import io
+import tarfile
+from typing import IO, List
+
+
+def parse_plain_text(file_obj, encoding="utf-8") -> List[str]:
+    lines = []
+    if isinstance(file_obj, io.BufferedReader):
+        file_content = file_obj.read().decode(encoding)
+        lines = file_content.splitlines()
+    return lines
+
+
+def parse_dockerfile(file_obj) -> dict:
+    content = dict()
+    if isinstance(file_obj, io.BufferedReader):
+        lines = parse_plain_text(file_obj)
+        content["base_image"] = lines[0].strip("FROM ")
+        content["instruction"] = lines[2:-2]  # Cut out the Domino specific instructions
+    return content
+
+
+REVISION_PARSERS = {
+    "Dockerfile": parse_dockerfile,
+    "preSetupScript.sh": parse_plain_text,
+    "postSetupScript.sh": parse_plain_text,
+    "preRunScript.sh": parse_plain_text,
+    "postRunScript.sh": parse_plain_text,
+}
+
+
+def parse_revision_tar(file_obj: IO[bytes]) -> dict:
+    content = dict()
+    tar = tarfile.open(fileobj=file_obj)
+    for member in tar.getmembers():
+        file_name = member.name.split("/")[-1]
+        parse_func = REVISION_PARSERS.get(file_name)
+        if parse_func:
+            extracted_file = tar.extractfile(member.name)
+            content[file_name] = parse_func(extracted_file)
+
+    return content
