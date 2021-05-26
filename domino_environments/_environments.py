@@ -3,7 +3,6 @@ import logging
 import os
 from typing import List
 
-import requests
 from domino.bearer_auth import BearerAuth
 from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME
 from domino.helpers import (
@@ -19,49 +18,6 @@ from requests.auth import HTTPBasicAuth
 from .utils import parse_revision_tar
 
 __version__ = "0.0.1"
-
-BASE_URL = "https://field.cs.domino.tech"
-BASE_ENDPOINT = f"{BASE_URL}/v4"
-CREATE_REVISION_URL = BASE_URL + "/environments/{}/revisions"
-GET_REVISION_URL = BASE_URL + "/environments/revisions/{}"
-
-api_key = ""
-env_id = "60a4227aca6bcb42784aea9f"
-
-res = requests.get(BASE_ENDPOINT + f"/environments/{env_id}", headers=headers)
-print(res)
-json_data = res.json()
-# print(json.dumps(json_data, indent=4))
-latest_revision_id = json_data["latestRevision"]["id"]
-
-
-# res = requests.get(BASE_ENDPOINT + f"/environments/defaultEnvironment", headers=headers)
-# print(res)
-# json_data = res.json()
-# print(json.dumps(json_data, indent=4))
-
-# form_payload = {
-#     "base.imageType": "CustomImage",
-#     "base.dockerImage": "ubuntu:18.04",
-#     "base.baseEnvironmentRevisionId": "",
-#     "base.defaultEnvironmentImage": "",
-#     "dockerfileInstructions": """
-# RUN apt-get update && apt-get install -y curl
-
-# RUN echo test && \\
-#     echo test2
-# """,
-#     "properties": "",
-#     "preRunScript": "",
-#     "postRunScript": "",
-#     "buildEnvironmentVariables[0].name": "",
-#     "buildEnvironmentVariables[0].value": "",
-#     "preSetupScript": "",
-#     "postSetupScript": "",
-#     "dockerArguments": "",
-#     "summary": "",
-#     "save": "",
-# }
 
 
 class ImageType:
