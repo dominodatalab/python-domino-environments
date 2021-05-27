@@ -16,7 +16,7 @@ def parse_dockerfile(file_obj) -> dict:
     if isinstance(file_obj, io.BufferedReader):
         lines = parse_plain_text(file_obj)
         content["base_image"] = lines[0].strip("FROM ")
-        content["instruction"] = lines[2:-2]  # Cut out the Domino specific instructions
+        content["instructions"] = lines[2:-2]  # Cut out the Domino specific instructions
     return content
 
 

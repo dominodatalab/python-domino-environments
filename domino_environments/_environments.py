@@ -15,9 +15,8 @@ from domino.helpers import (
 from domino.http_request_manager import _HttpRequestManager
 from requests.auth import HTTPBasicAuth
 
+from . import __version__
 from .utils import parse_revision_tar
-
-__version__ = "0.0.1"
 
 
 class ImageType:
@@ -57,6 +56,9 @@ class _EnvironmentRoutes:
 
 
 class Environment:
+    _env_data = dict()
+    _default_env_data = dict()
+
     def __init__(self, environment_id: str, base_url: str, api_key=None, domino_token_file=None):
         self._configure_logging()
 
@@ -75,12 +77,11 @@ class Environment:
         if not is_version_compatible(self._version):
             error_message = (
                 f"Domino version: {self._version} is not compatible with "
-                f"python-domino-environments version: {__version__}"
+                f"python-domino_environments-environments version: {__version__}"
             )
             self._logger.error(error_message)
             raise Exception(error_message)
 
-        self._data = dict()
         self.refresh(environment_id)
 
     @property
@@ -103,10 +104,12 @@ class Environment:
                 "must be provided via class constructor or environment variable"
             )
         elif domino_token_file is not None:
-            self._logger.info("Initializing python-domino-environments with bearer token auth")
+            self._logger.info(
+                "Initializing python-domino_environments-environments with bearer token auth")
             return _HttpRequestManager(BearerAuth(domino_token_file))
         else:
-            self._logger.info("Fallback: Initializing python-domino-environments with basic auth")
+            self._logger.info(
+                "Fallback: Initializing python-domino_environments-environments with basic auth")
             return _HttpRequestManager(HTTPBasicAuth("", api_key))
 
     def deployment_version(self):
@@ -114,9 +117,8 @@ class Environment:
         return self.request_manager.get(url).json().get("version")
 
     def refresh(self, environment_id=None):
-        environment_id = environment_id or self._id
-        url = self._routes.environment_get(environment_id)
-        self._data = self.request_manager.get(url).json()
+        self._env_data = self.get_environment(environment_id)
+        self._default_env_data = self.get_default_environment()
 
     def archive_environment(self):
         url = self._routes.environment_remove(self._id)
@@ -126,11 +128,16 @@ class Environment:
         url = self._routes.environment_default_get()
         return self.request_manager.get(url).json()
 
+    def get_environment(self, environment_id=None):
+        environment_id = environment_id or self._id
+        url = self._routes.environment_get(environment_id)
+        return self.request_manager.get(url).json()
+
     def get_latest_revision(self) -> dict:
-        return self._data.get("latestRevision")
+        return self._env_data.get("latestRevision")
 
     def get_active_revision(self) -> dict:
-        return self._data.get("activeRevision")
+        return self._env_data.get("activeRevision")
 
     def create_revision(
         self,
@@ -195,24 +202,24 @@ class Environment:
 
     @property
     def _id(self) -> str:
-        return self._data.get("id")
+        return self._env_data.get("id")
 
     @property
     def archived(self) -> bool:
-        return self._data.get("archived")
+        return self._env_data.get("archived")
 
     @property
     def name(self) -> str:
-        return self._data.get("name")
+        return self._env_data.get("name")
 
     @property
     def visibility(self) -> str:
-        return self._data.get("visibility")
+        return self._env_data.get("visibility")
 
     @property
     def owner(self) -> dict:
-        return self._data.get("owner")
+        return self._env_data.get("owner")
 
     @property
     def supported_clusters(self) -> list:
-        return self._data.get("supportedClusters")
+        return self._env_data.get("supportedClusters")

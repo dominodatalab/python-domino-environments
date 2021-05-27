@@ -1,3 +1,9 @@
-__import__('pkg_resources').declare_namespace(__name__)
+from ._environments import Environment, ImageType, ClusterType
 
-from ._environments import Environment, ImageType
+__all__ = [
+    "Environment",
+    "ImageType",
+    "ClusterType",
+]
+
+__version__ = "0.0.1"

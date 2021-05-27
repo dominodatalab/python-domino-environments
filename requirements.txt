@@ -1,3 +1,2 @@
 requests>=2.4.2
-beautifulsoup4>=4.9.3
-https://github.com/dominodatalab/python-domino/archive/master.zip
+python-domino@git+https://github.com/dominodatalab/python-domino
