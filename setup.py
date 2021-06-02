@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 def get_version():
     try:
-        fp = open(f"domino_environments/__init__.py")
+        fp = open(f"domino_environments/_version.py")
     except EnvironmentError:
         return None
 

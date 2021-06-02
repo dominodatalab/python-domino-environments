@@ -5,5 +5,3 @@ __all__ = [
     "ImageType",
     "ClusterType",
 ]
-
-__version__ = "0.0.1"
