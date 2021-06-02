@@ -15,7 +15,7 @@ from domino.helpers import (
 from domino.http_request_manager import _HttpRequestManager
 from requests.auth import HTTPBasicAuth
 
-from . import __version__
+from ._version import __version__
 from .utils import parse_revision_tar
 
 
@@ -57,7 +57,9 @@ class _EnvironmentRoutes:
 
 class Environment:
     _env_data = dict()
+    _env_details = dict()
     _default_env_data = dict()
+    _default_env_details = dict()
 
     def __init__(self, environment_id: str, base_url: str, api_key=None, domino_token_file=None):
         self._configure_logging()
@@ -97,7 +99,7 @@ class Environment:
         logging.basicConfig(level=logging_level)
         self._logger = logging.getLogger(__name__)
 
-    def _initialise_request_manager(self, api_key, domino_token_file):
+    def _initialise_request_manager(self, api_key: str, domino_token_file: str):
         if api_key is None and domino_token_file is None:
             raise Exception(
                 "Either api_key or path_to_domino_token_file "
@@ -116,9 +118,15 @@ class Environment:
         url = self._routes.deployment_version()
         return self.request_manager.get(url).json().get("version")
 
-    def refresh(self, environment_id=None):
+    def refresh(self, environment_id: str = None, revision_id: str = None):
         self._env_data = self.get_environment(environment_id)
+        self._env_details = self.get_revision_details(environment_id, revision_id)
+
         self._default_env_data = self.get_default_environment()
+        self._default_env_details = self.get_revision_details(
+            self._default_env_data["id"],
+            self._default_env_data["selectedRevision"]["id"],
+        )
 
     def archive_environment(self):
         url = self._routes.environment_remove(self._id)
@@ -128,23 +136,30 @@ class Environment:
         url = self._routes.environment_default_get()
         return self.request_manager.get(url).json()
 
-    def get_environment(self, environment_id=None):
+    def get_environment(self, environment_id: str = None):
         environment_id = environment_id or self._id
         url = self._routes.environment_get(environment_id)
         return self.request_manager.get(url).json()
 
-    def get_latest_revision(self) -> dict:
-        return self._env_data.get("latestRevision")
+    def get_revision_details(self, environment_id: str = None, revision_id: str = None) -> dict:
+        """Gather Dockerfile instructions, Pre/Post Setup Script, and Pre/Post Run Script info.
 
-    def get_active_revision(self) -> dict:
-        return self._env_data.get("activeRevision")
+        Args:
+            environment_id: The ID of the environment, defaults to self ID.
+            revision_id: The ID of the environment's revision, defaults to self active revision ID.
+            revision_id: The ID of the environment's revision, defaults to self active revision ID.
+        """
+        environment_id = environment_id or self._id
+        revision_id = revision_id or self.active_revision.get("id")
+        scraped_data = self._scrape_revision(environment_id, revision_id)
+        return scraped_data
 
     def create_revision(
         self,
         image_type: str,
         docker_image: str = "",
-        base_environment_revision_id: str = "",
-        base_default_environment_image: str = "",
+        base_environment_revision_id: str = None,
+        base_default_environment_image: str = None,
         dockerfile_instructions: str = "",
         workspace_tools: str = "",
         pre_run_script: str = "",
@@ -158,6 +173,12 @@ class Environment:
         docker_arguments: str = "",
         summary: str = "",
     ):
+        if not base_environment_revision_id:
+            base_environment_revision_id = self._default_env_data["selectedRevision"]["id"]
+
+        if not base_default_environment_image:
+            base_default_environment_image = self._default_env_details["Dockerfile"]["base_image"]
+
         form_payload = {
             "base.imageType": image_type,
             "base.dockerImage": docker_image,
@@ -203,6 +224,14 @@ class Environment:
     @property
     def _id(self) -> str:
         return self._env_data.get("id")
+
+    @property
+    def latest_revision(self) -> dict:
+        return self._env_data.get("latestRevision")
+
+    @property
+    def active_revision(self) -> dict:
+        return self._env_data.get("selectedRevision")
 
     @property
     def archived(self) -> bool:
