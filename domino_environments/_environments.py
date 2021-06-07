@@ -197,7 +197,7 @@ class EnvironmentManager:
         name: str,
         image_type: str,
         visibility: str,
-        description: str = "",
+        description: Union[str, List[str]] = "",
         docker_image: str = "",
         base_environment_revision_id: str = None,
         base_default_environment_image: str = None,
@@ -210,6 +210,9 @@ class EnvironmentManager:
 
         if not base_default_environment_image:
             base_default_environment_image = self._default_details["Dockerfile"]["base_image"]
+
+        # Ensure that the description is a string
+        description = list_to_string(description)
 
         form_payload = {
             "name": name,

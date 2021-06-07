@@ -40,17 +40,21 @@ target_env = env_man.get_environment("60709c5c110dac3d9bab6485")
 # Archive an environment by ID
 env_man.archive_environment(target_env)
 
-# Create an private environment using a custom base image
+# Create a private environment using a custom base image
 env_man.create_environment(
     name="Ubuntu 18 - DAD Py3.6 R3.6",
     image_type=ImageType.CUSTOM,
     visibility=Visibility.PRIVATE,
-    description="Domino Analytics Distribution\nUbuntu 18.04\nPython 3.6\nR 3.6\n2020-05-08",
+    description=[
+        "Domino Analytics Distribution",
+        "Ubuntu 18.04 - Python 3.6 - R 3.6",
+        "2020-05-08"
+    ],
     docker_image="quay.io/domino/base:Ubuntu18_DAD_Py3.6_R3.6_20200508",
     user_owner_id="607dc22f3d5afefc9f81b599",  # Optional, defaults to current user
 )
 
-# Create an global environment using the default base image
+# Create a global environment using the default base image
 env_man.create_environment(
     name="Base Env",
     image_type=ImageType.DEFAULT,
@@ -68,7 +72,7 @@ env_man.create_environment(
     organization_owner_id="609c0da3140b065c849b84ab",
 )
 
-# Create an global environment for use as a Spark node
+# Create a global environment for use as a Spark node
 env_man.create_environment(
     name="Spark 2.4.6",
     image_type=ImageType.CUSTOM,
@@ -90,7 +94,7 @@ print(env.active_revision)
 # Retrieve the latest revision (most recent build, regardless of success)
 print(env.latest_revision)
 
-# Retrieve the details of a revision (includes Dockerfile instructions and post/pre run/setup scripts)
+# Retrieve the details of a revision (includes Dockerfile instructions and pre/post run/setup scripts)
 rev_details = env_man.get_revision_details(environment=env, revision_id=env.active_revision["id"])
 
 # If only an environment is passed, then the active revision will be used (equivalent to above statement)
