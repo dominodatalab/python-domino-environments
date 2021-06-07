@@ -16,7 +16,7 @@ from domino.http_request_manager import _HttpRequestManager
 from requests.auth import HTTPBasicAuth
 
 from ._version import __version__
-from .utils import parse_revision_tar
+from .utils import DominoAPIKeyAuth, parse_revision_tar
 
 
 class ImageType:
@@ -126,7 +126,7 @@ class EnvironmentManager:
         if not is_version_compatible(self._version):
             error_message = (
                 f"Domino version: {self._version} is not compatible with "
-                f"python-domino_environments-environments version: {__version__}"
+                f"python-domino-environments version: {__version__}"
             )
             self.log.error(error_message)
             raise Exception(error_message)
@@ -154,14 +154,14 @@ class EnvironmentManager:
             )
         elif domino_token_file is not None:
             self.log.info(
-                "Initializing python-domino_environments-environments with bearer token auth"
+                "Initializing python-domino-environments with bearer token auth"
             )
             return _HttpRequestManager(BearerAuth(domino_token_file))
         else:
             self.log.info(
-                "Fallback: Initializing python-domino_environments-environments with basic auth"
+                "Fallback: Initializing python-domino-environments with API key auth"
             )
-            return _HttpRequestManager(HTTPBasicAuth("", api_key))
+            return _HttpRequestManager(DominoAPIKeyAuth(api_key))
 
     def deployment_version(self):
         url = self._routes.deployment_version()

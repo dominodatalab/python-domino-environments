@@ -2,6 +2,25 @@ import io
 import tarfile
 from typing import IO, List
 
+from requests.auth import AuthBase
+
+
+class DominoAPIKeyAuth(AuthBase):
+    """Attaches Domino API Key Header to the given Request object."""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def __eq__(self, other):
+        return self.api_key == getattr(other, "api_key", None)
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __call__(self, r):
+        r.headers['X-Domino-Api-Key'] = self.api_key
+        return r
+
 
 def parse_plain_text(file_obj, encoding="utf-8") -> List[str]:
     lines = []
