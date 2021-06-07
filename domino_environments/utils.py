@@ -18,8 +18,14 @@ class DominoAPIKeyAuth(AuthBase):
         return not self == other
 
     def __call__(self, r):
-        r.headers['X-Domino-Api-Key'] = self.api_key
+        r.headers["X-Domino-Api-Key"] = self.api_key
         return r
+
+
+def list_to_string(val, separator="\n"):
+    if isinstance(val, list):
+        return separator.join(val)
+    return val
 
 
 def parse_plain_text(file_obj, encoding="utf-8") -> List[str]:

@@ -1,7 +1,7 @@
 import io
 import logging
 import os
-from typing import List
+from typing import List, Union
 
 from domino.bearer_auth import BearerAuth
 from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME
@@ -13,26 +13,25 @@ from domino.helpers import (
     is_version_compatible,
 )
 from domino.http_request_manager import _HttpRequestManager
-from requests.auth import HTTPBasicAuth
 
 from ._version import __version__
-from .utils import DominoAPIKeyAuth, parse_revision_tar
+from .utils import DominoAPIKeyAuth, list_to_string, parse_revision_tar
 
 
 class ImageType:
-    custom = "CustomImage"
-    default = "DefaultImage"
-    environment = "Environment"
+    CUSTOM = "CustomImage"
+    DEFAULT = "DefaultImage"
+    ENVIRONMENT = "Environment"
 
 
 class ClusterType:
-    spark = "Spark"
+    SPARK = "Spark"
 
 
 class Visibility:
-    global_ = "Global"
-    organization = "Organization"
-    private = "Private"
+    GLOBAL = "Global"
+    ORGANIZATION = "Organization"
+    PRIVATE = "Private"
 
 
 class _EnvironmentRoutes:
@@ -106,21 +105,33 @@ class Environment:
 
 class EnvironmentManager:
     _default_environment: Environment
-    _default_environment_details: dict
+    _default_details: dict
 
-    def __init__(self, base_url: str, api_key=None, domino_token_file=None):
+    def __init__(self, host=None, api_key=None, domino_token_file=None):
+        """
+        Args:
+            host: (Optional) A host URL.
+                If not provided the library will expect to find one in the
+                DOMINO_API_HOST environment variable.
+            api_key: (Optional) An API key to authenticate with.
+                If not provided the library will expect to find one in the
+                DOMINO_USER_API_KEY environment variable.
+            domino_token_file: (Optional) Path to domino token file containing auth token.
+                If not provided the library will expect to find one in the
+                DOMINO_TOKEN_FILE environment variable.
+        """
         self._configure_logging()
 
-        base_url: str = clean_host_url(get_host_or_throw_exception(base_url))
+        host: str = clean_host_url(get_host_or_throw_exception(host))
         domino_token_file = get_path_to_domino_token_file(domino_token_file)
         api_key: str = get_api_key(api_key)
 
         self.request_manager = self._initialise_request_manager(api_key, domino_token_file)
-        self._routes = _EnvironmentRoutes(base_url)
+        self._routes = _EnvironmentRoutes(host)
 
         # Get Domino deployment version
         self._version = self.deployment_version()
-        self.log.info(f"Domino deployment {base_url} is running version {self._version}")
+        self.log.info(f"Domino deployment {host} is running version {self._version}")
 
         # Check version compatibility
         if not is_version_compatible(self._version):
@@ -153,14 +164,10 @@ class EnvironmentManager:
                 "must be provided via class constructor or environment variable"
             )
         elif domino_token_file is not None:
-            self.log.info(
-                "Initializing python-domino-environments with bearer token auth"
-            )
+            self.log.info("Initializing python-domino-environments with bearer token auth")
             return _HttpRequestManager(BearerAuth(domino_token_file))
         else:
-            self.log.info(
-                "Fallback: Initializing python-domino-environments with API key auth"
-            )
+            self.log.info("Fallback: Initializing python-domino-environments with API key auth")
             return _HttpRequestManager(DominoAPIKeyAuth(api_key))
 
     def deployment_version(self):
@@ -169,7 +176,7 @@ class EnvironmentManager:
 
     def refresh_defaults(self):
         self._default_environment = self.get_default_environment()
-        self._default_environment_details = self.get_revision_details(self._default_environment)
+        self._default_details = self.get_revision_details(self._default_environment)
 
     def get_default_environment(self) -> Environment:
         url = self._routes.environment_default_get()
@@ -202,9 +209,7 @@ class EnvironmentManager:
             base_environment_revision_id = self._default_environment.active_revision["id"]
 
         if not base_default_environment_image:
-            base_default_environment_image = self._default_environment_details["Dockerfile"][
-                "base_image"
-            ]
+            base_default_environment_image = self._default_details["Dockerfile"]["base_image"]
 
         form_payload = {
             "name": name,
@@ -216,7 +221,7 @@ class EnvironmentManager:
             "base.defaultEnvironmentImage": base_default_environment_image,
         }
 
-        if visibility == Visibility.organization:
+        if visibility == Visibility.ORGANIZATION:
             form_payload["organizationOwnerId"] = organization_owner_id
 
         if user_owner_id:
@@ -248,26 +253,33 @@ class EnvironmentManager:
         docker_image: str = "",
         base_environment_revision_id: str = None,
         base_default_environment_image: str = None,
-        dockerfile_instructions: str = "",
-        workspace_tools: str = "",
-        pre_run_script: str = "",
-        post_run_script: str = "",
-        pre_setup_script: str = "",
-        post_setup_script: str = "",
-        environment_variables: List[tuple] = None,
+        dockerfile_instructions: Union[str, List[str]] = "",
+        workspace_tools: Union[str, List[str]] = "",
+        pre_run_script: Union[str, List[str]] = "",
+        post_run_script: Union[str, List[str]] = "",
+        pre_setup_script: Union[str, List[str]] = "",
+        post_setup_script: Union[str, List[str]] = "",
+        environment_variables: Union[dict, List[tuple]] = None,
+        docker_arguments: Union[str, List[str]] = "",
         force_rebuild: bool = False,
         should_use_vpn: bool = False,
         cluster_types: str = None,
-        docker_arguments: str = "",
         summary: str = "",
     ):
         if not base_environment_revision_id:
             base_environment_revision_id = self._default_environment.active_revision["id"]
 
         if not base_default_environment_image:
-            base_default_environment_image = self._default_environment_details["Dockerfile"][
-                "base_image"
-            ]
+            base_default_environment_image = self._default_details["Dockerfile"]["base_image"]
+
+        # Ensure that each variable is a single string
+        dockerfile_instructions = list_to_string(dockerfile_instructions)
+        workspace_tools = list_to_string(workspace_tools)
+        pre_run_script = list_to_string(pre_run_script)
+        post_run_script = list_to_string(post_run_script)
+        pre_setup_script = list_to_string(pre_setup_script)
+        post_setup_script = list_to_string(post_setup_script)
+        docker_arguments = list_to_string(docker_arguments)
 
         form_payload = {
             "base.imageType": image_type,
@@ -285,9 +297,13 @@ class EnvironmentManager:
         }
 
         if environment_variables:
-            for idx, env_var in enumerate(environment_variables):
-                form_payload[f"buildEnvironmentVariables[{idx}].name"] = env_var[0]
-                form_payload[f"buildEnvironmentVariables[{idx}].value"] = env_var[1]
+            if isinstance(environment_variables, dict):
+                # Convert dictionary to a list of tuples
+                environment_variables = list(environment_variables.items())
+
+            for idx, (key, val) in enumerate(environment_variables):
+                form_payload[f"buildEnvironmentVariables[{idx}].name"] = key
+                form_payload[f"buildEnvironmentVariables[{idx}].value"] = val
 
         if force_rebuild:
             form_payload["noCache"] = True
