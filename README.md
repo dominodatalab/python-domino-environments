@@ -115,13 +115,13 @@ env_man.create_revision(
         "    echo test2",
     ],
     workspace_tools=[
-        "vscode:"
-        "  title: \"vscode\""
-        "  iconUrl: \"/assets/images/workspace-logos/vscode.svg\""
-        "  start: [ \"/var/opt/workspaces/vscode/start\" ]"
-        "  httpProxy:"
-        "    port: 8888"
-        "    requireSubdomain: false"
+        'vscode:'
+        '  title: "vscode"'
+        '  iconUrl: "/assets/images/workspace-logos/vscode.svg"'
+        '  start: [ "/var/opt/workspaces/vscode/start" ]'
+        '  httpProxy:'
+        '    port: 8888'
+        '    requireSubdomain: false'
     ],
     pre_run_script='echo "Pre Run Script"',
     post_run_script='echo "Post Run Script"',
