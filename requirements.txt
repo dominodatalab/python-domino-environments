@@ -1,2 +1,2 @@
 requests>=2.4.2
-python-domino@git+https://github.com/dominodatalab/python-domino
+python-domino@https://github.com/dominodatalab/python-domino/archive/1.0.4.zip
