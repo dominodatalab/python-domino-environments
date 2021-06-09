@@ -22,6 +22,11 @@ class DominoAPIKeyAuth(AuthBase):
         return r
 
 
+def parse_version(version, sep="."):
+    """Convert string version into a tuple of ints for easy comparisons."""
+    return tuple(int(x) for x in version.split(sep))
+
+
 def list_to_string(val, separator="\n"):
     if isinstance(val, list):
         return separator.join(val)
