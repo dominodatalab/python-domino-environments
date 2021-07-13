@@ -1,5 +1,10 @@
 # python-domino-environments
 
+This library implements methods for viewing and creating Domino Data Lab Environments.
+
+Once official API endpoints are available then this library will become deprecated.  
+**This is not officially supported because it does not rely on official API endpoints.**
+
 ## Installation
 
 Install with `pip`
