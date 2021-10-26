@@ -3,13 +3,15 @@ import logging
 import os
 from typing import List, Union
 
-from domino.bearer_auth import BearerAuth
-from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME
+#Python-domino version compatibility
+try:
+    from domino.bearer_auth import BearerAuth
+except:
+    from domino.authentication import BearerAuth
+
+from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME, DOMINO_HOST_KEY_NAME, DOMINO_TOKEN_FILE_KEY_NAME, DOMINO_USER_API_KEY_KEY_NAME
 from domino.helpers import (
     clean_host_url,
-    get_api_key,
-    get_host_or_throw_exception,
-    get_path_to_domino_token_file,
     is_version_compatible,
 )
 from domino.http_request_manager import _HttpRequestManager
@@ -122,9 +124,13 @@ class EnvironmentManager:
         """
         self._configure_logging()
 
-        host: str = clean_host_url(get_host_or_throw_exception(host))
-        domino_token_file = get_path_to_domino_token_file(domino_token_file)
-        api_key: str = get_api_key(api_key)
+        _host = host or os.getenv(DOMINO_HOST_KEY_NAME)
+        assert _host, ("Host must be supplied as a parameter or through the "
+                       f"{DOMINO_HOST_KEY_NAME} environment variable.")
+
+        host: str = clean_host_url(_host)
+        domino_token_file = domino_token_file or os.getenv(DOMINO_TOKEN_FILE_KEY_NAME)
+        api_key: str = api_key or os.getenv(DOMINO_USER_API_KEY_KEY_NAME)
 
         self.request_manager = self._initialise_request_manager(api_key, domino_token_file)
         self._routes = _EnvironmentRoutes(host)
@@ -163,9 +169,9 @@ class EnvironmentManager:
                 "Either api_key or path_to_domino_token_file "
                 "must be provided via class constructor or environment variable"
             )
-        elif domino_token_file is not None:
-            self.log.info("Initializing python-domino-environments with bearer token auth")
-            return _HttpRequestManager(BearerAuth(domino_token_file))
+        #elif domino_token_file is not None:
+        #    self.log.info("Initializing python-domino-environments with bearer token auth")
+        #    return _HttpRequestManager(BearerAuth(domino_token_file))
         else:
             self.log.info("Fallback: Initializing python-domino-environments with API key auth")
             return _HttpRequestManager(DominoAPIKeyAuth(api_key))
@@ -233,11 +239,15 @@ class EnvironmentManager:
         if cluster_types:
             form_payload["clusterTypes[]"] = cluster_types
 
-        return self.request_manager.post(
+        response = self.request_manager.post(
             url=self._routes.environment_create(),
             data=form_payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
+        if response.ok:
+            return (response, response.url.split("/")[4])
+        else:
+            return (response, None)
 
     def get_revision_details(self, environment: Environment, revision_id: str = None) -> dict:
         """Gather Dockerfile instructions, Pre/Post Setup Script, and Pre/Post Run Script info.
