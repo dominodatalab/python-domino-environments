@@ -26,6 +26,8 @@ class ImageType:
 
 class ClusterType:
     SPARK = "Spark"
+    RAY = "Ray"
+    DASK = "Dask"
 
 
 class Visibility:
