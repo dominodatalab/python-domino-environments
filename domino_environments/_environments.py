@@ -182,9 +182,9 @@ class EnvironmentManager:
                 "Either api_key or path_to_domino_token_file "
                 "must be provided via class constructor or environment variable"
             )
-        elif domino_token_file is not None:
-            self.log.info("Initializing python-domino-environments with bearer token auth")
-            return _HttpRequestManager(BearerAuth(domino_token_file))
+        #elif domino_token_file is not None:
+        #    self.log.info("Initializing python-domino-environments with bearer token auth")
+        #    return _HttpRequestManager(BearerAuth(domino_token_file))
         else:
             self.log.info("Fallback: Initializing python-domino-environments with API key auth")
             return _HttpRequestManager(DominoAPIKeyAuth(api_key))
