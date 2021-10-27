@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import re
 from typing import List, Union
 
 #Python-domino version compatibility
@@ -69,6 +70,16 @@ class _EnvironmentRoutes:
             + f"/v1/environments/{environment_id}/revisions/{revision_id}/dockerImageSourceProjectWeb"
         )
 
+    def revision_summaries(self, environment_id, pageStart, pageEnd):
+        return (
+            self.host
+            + f"/environments/{environment_id}/json/paged/{pageStart}/{pageEnd}"
+        )
+
+    def build_logs(self, build_logs_url: str):
+        return (
+            self.host + build_logs_url.replace("/logs","/fetchBuildLogsSince")
+        )
 
 class Environment:
     def __init__(self, data: dict):
@@ -249,6 +260,7 @@ class EnvironmentManager:
         if response.ok:
             return (response, response.url.split("/")[4])
         else:
+            # Should we maybe raise an exception here?
             return (response, None)
 
     def get_revision_details(self, environment: Environment, revision_id: str = None) -> dict:
@@ -335,8 +347,47 @@ class EnvironmentManager:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
+    #TODO: add some paging logic in here. search 10/20 at a time and fail if not found
+    def get_build_status(self, environment: Environment, revision_id: str = None):
+        """Gather current status of build job for a given environment/revision
+
+        Args:
+            environment: The environment object.
+            revision_id: The ID of the revision, defaults to the environment's active revision.
+        """
+        revision_id = revision_id or environment.active_revision.get("id")
+        summary = self._get_revision_summary(environment.id)
+        return summary['buildStatus'][revision_id]
+
+    def get_build_logs(self, environment: Environment, revision_id: str = None):
+        """Gather logs of build job for a given environment/revision
+
+        Args:
+            environment: The environment object.
+            revision_id: The ID of the revision, defaults to the environment's active revision.
+        """
+        revision_id = revision_id or environment.active_revision.get("id")
+        summary = self._get_revision_summary(environment.id)
+        logs_url = summary['buildLogsUrl'][revision_id]
+
+        url = self._routes.build_logs(logs_url)
+        res = self.request_manager.get(url)
+
+        regex = re.compile((r'<td class="line".*?>(.*)</td>'))
+        logs_matching = regex.findall(res.text)
+
+        return logs_matching
+
+
+
     def _scrape_revision(self, environment_id: str, revision_id: str) -> dict:
         url = self._routes.revision_download(environment_id, revision_id)
         res = self.request_manager.get(url)
         file_io = io.BytesIO(res.content)
         return parse_revision_tar(file_io)
+
+
+    def _get_revision_summary(self, environment_id: str, pageStart=0, pageEnd=500) -> dict:
+        url = self._routes.revision_summaries(environment_id, pageStart, pageEnd)
+        res = self.request_manager.get(url)
+        return res.json()
