@@ -261,6 +261,7 @@ class EnvironmentManager:
             return (response, response.url.split("/")[4])
         else:
             # Should we maybe raise an exception here?
+            response.raise_for_status()
             return (response, None)
 
     def get_revision_details(self, environment: Environment, revision_id: str = None) -> dict:
