@@ -4,7 +4,7 @@ import os
 import re
 from typing import List, Union
 
-#Python-domino version compatibility
+# python-domino version compatibility
 try:
     from domino.bearer_auth import BearerAuth
 except:
