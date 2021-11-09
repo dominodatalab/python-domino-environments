@@ -138,8 +138,11 @@ class EnvironmentManager:
         self._configure_logging()
 
         _host = host or os.getenv(DOMINO_HOST_KEY_NAME)
-        assert _host, ("Host must be supplied as a parameter or through the "
-                       f"{DOMINO_HOST_KEY_NAME} environment variable.")
+        if not _host:
+            error_message = f"Host must be supplied as a parameter or through the "
+            f"{DOMINO_HOST_KEY_NAME} environment variable."
+            self.log.error(error_message)
+            raise Exception(error_message)
 
         host: str = clean_host_url(_host)
         domino_token_file = domino_token_file or os.getenv(DOMINO_TOKEN_FILE_KEY_NAME)
