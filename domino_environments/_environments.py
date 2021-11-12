@@ -1,15 +1,18 @@
 import io
 import logging
 import os
+import re
 from typing import List, Union
 
-from domino.bearer_auth import BearerAuth
-from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME
+# python-domino version compatibility
+try:
+    from domino.bearer_auth import BearerAuth
+except:
+    from domino.authentication import BearerAuth
+
+from domino.constants import DOMINO_LOG_LEVEL_KEY_NAME, DOMINO_HOST_KEY_NAME, DOMINO_TOKEN_FILE_KEY_NAME, DOMINO_USER_API_KEY_KEY_NAME
 from domino.helpers import (
     clean_host_url,
-    get_api_key,
-    get_host_or_throw_exception,
-    get_path_to_domino_token_file,
     is_version_compatible,
 )
 from domino.http_request_manager import _HttpRequestManager
@@ -67,6 +70,16 @@ class _EnvironmentRoutes:
             + f"/v1/environments/{environment_id}/revisions/{revision_id}/dockerImageSourceProjectWeb"
         )
 
+    def revision_summaries(self, environment_id, pageStart, pageEnd):
+        return (
+            self.host
+            + f"/environments/{environment_id}/json/paged/{pageStart}/{pageEnd}"
+        )
+
+    def build_logs(self, build_logs_url: str):
+        return (
+            self.host + build_logs_url.replace("/logs","/fetchBuildLogsSince")
+        )
 
 class Environment:
     def __init__(self, data: dict):
@@ -124,9 +137,16 @@ class EnvironmentManager:
         """
         self._configure_logging()
 
-        host: str = clean_host_url(get_host_or_throw_exception(host))
-        domino_token_file = get_path_to_domino_token_file(domino_token_file)
-        api_key: str = get_api_key(api_key)
+        _host = host or os.getenv(DOMINO_HOST_KEY_NAME)
+        if not _host:
+            error_message = f"Host must be supplied as a parameter or through the "
+            f"{DOMINO_HOST_KEY_NAME} environment variable."
+            self.log.error(error_message)
+            raise Exception(error_message)
+
+        host: str = clean_host_url(_host)
+        domino_token_file = domino_token_file or os.getenv(DOMINO_TOKEN_FILE_KEY_NAME)
+        api_key: str = api_key or os.getenv(DOMINO_USER_API_KEY_KEY_NAME)
 
         self.request_manager = self._initialise_request_manager(api_key, domino_token_file)
         self._routes = _EnvironmentRoutes(host)
@@ -235,11 +255,17 @@ class EnvironmentManager:
         if cluster_types:
             form_payload["clusterTypes[]"] = cluster_types
 
-        return self.request_manager.post(
+        response = self.request_manager.post(
             url=self._routes.environment_create(),
             data=form_payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
+        if response.ok:
+            return (response, response.url.split("/")[4])
+        else:
+            # Should we maybe raise an exception here?
+            response.raise_for_status()
+            return (response, None)
 
     def get_revision_details(self, environment: Environment, revision_id: str = None) -> dict:
         """Gather Dockerfile instructions, Pre/Post Setup Script, and Pre/Post Run Script info.
@@ -325,8 +351,47 @@ class EnvironmentManager:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
+    #TODO: add some paging logic in here. search 10/20 at a time and fail if not found
+    def get_build_status(self, environment: Environment, revision_id: str = None):
+        """Gather current status of build job for a given environment/revision
+
+        Args:
+            environment: The environment object.
+            revision_id: The ID of the revision, defaults to the environment's active revision.
+        """
+        revision_id = revision_id or environment.active_revision.get("id")
+        summary = self._get_revision_summary(environment.id)
+        return summary['buildStatus'][revision_id]
+
+    def get_build_logs(self, environment: Environment, revision_id: str = None):
+        """Gather logs of build job for a given environment/revision
+
+        Args:
+            environment: The environment object.
+            revision_id: The ID of the revision, defaults to the environment's active revision.
+        """
+        revision_id = revision_id or environment.active_revision.get("id")
+        summary = self._get_revision_summary(environment.id)
+        logs_url = summary['buildLogsUrl'][revision_id]
+
+        url = self._routes.build_logs(logs_url)
+        res = self.request_manager.get(url)
+
+        regex = re.compile((r'<td class="line".*?>(.*)</td>'))
+        logs_matching = regex.findall(res.text)
+
+        return logs_matching
+
+
+
     def _scrape_revision(self, environment_id: str, revision_id: str) -> dict:
         url = self._routes.revision_download(environment_id, revision_id)
         res = self.request_manager.get(url)
         file_io = io.BytesIO(res.content)
         return parse_revision_tar(file_io)
+
+
+    def _get_revision_summary(self, environment_id: str, pageStart=0, pageEnd=500) -> dict:
+        url = self._routes.revision_summaries(environment_id, pageStart, pageEnd)
+        res = self.request_manager.get(url)
+        return res.json()
