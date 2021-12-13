@@ -357,9 +357,9 @@ class EnvironmentManager:
 
         Args:
             environment: The environment object.
-            revision_id: The ID of the revision, defaults to the environment's active revision.
+            revision_id: The ID of the revision, defaults to the environment's latest revision.
         """
-        revision_id = revision_id or environment.active_revision.get("id")
+        revision_id = revision_id or environment.latest_revision.get("id")
         summary = self._get_revision_summary(environment.id)
         return summary['buildStatus'][revision_id]
 
@@ -368,9 +368,9 @@ class EnvironmentManager:
 
         Args:
             environment: The environment object.
-            revision_id: The ID of the revision, defaults to the environment's active revision.
+            revision_id: The ID of the revision, defaults to the environment's latest revision.
         """
-        revision_id = revision_id or environment.active_revision.get("id")
+        revision_id = revision_id or environment.latest_revision.get("id")
         summary = self._get_revision_summary(environment.id)
         logs_url = summary['buildLogsUrl'][revision_id]
 
