@@ -261,7 +261,10 @@ class EnvironmentManager:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if response.ok:
-            return (response, response.url.split("/")[4])
+            env_id = response.url.split("/")[-1]
+            if env_id == "environments":
+                raise ValueError(f"Did not create the environment due to invalid configuration")
+            return (response, env_id)
         else:
             # Should we maybe raise an exception here?
             response.raise_for_status()
