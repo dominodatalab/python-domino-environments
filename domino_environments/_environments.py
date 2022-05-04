@@ -205,7 +205,7 @@ class EnvironmentManager:
         self._default_details = self.get_revision_details(self._default_environment)
 
     def get_environments_list(self):
-        url = self._routes.get_environments()
+        url = self._routes.get_environments_list()
         return self.request_manager.get(url).json().get('data')
 
     def get_default_environment(self) -> Environment:
