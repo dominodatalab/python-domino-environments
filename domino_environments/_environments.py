@@ -46,7 +46,7 @@ class _EnvironmentRoutes:
     def deployment_version(self):
         return self.host + "/version"
 
-    def get_environments_list(self):
+    def environments_list(self):
         return self.host + "/v1/environments"
 
     def _build_environments_url(self) -> str:
@@ -205,7 +205,7 @@ class EnvironmentManager:
         self._default_details = self.get_revision_details(self._default_environment)
 
     def get_environments_list(self):
-        url = self._routes.get_environments_list()
+        url = self._routes.environments_list()
         return self.request_manager.get(url).json().get('data')
 
     def get_default_environment(self) -> Environment:
